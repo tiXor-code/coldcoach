@@ -13,6 +13,11 @@ struct ColdCoachApp: App {
                 .frame(minWidth: 900, minHeight: 600)
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Task { await model.checkForUpdates(force: true) } }
+            }
+        }
 
         Settings {
             SettingsView()

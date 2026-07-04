@@ -294,6 +294,49 @@ do {
     eq(cards.map(\.kind), [.objection, .objection, .buyingSignal], "integration: card kinds")
 }
 
+// MARK: - Update check (SemVer / release parse / channel)
+do {
+    eq(SemVer("v1.2.3"), SemVer(major: 1, minor: 2, patch: 3), "semver strips v")
+    eq(SemVer("1.4"), SemVer(major: 1, minor: 4, patch: 0), "semver missing patch -> 0")
+    eq(SemVer("v0.0.1-beta.2"), SemVer(major: 0, minor: 0, patch: 1), "semver strips prerelease")
+    ok(SemVer("banana") == nil, "semver rejects garbage")
+    ok(SemVer("1.10.0")! > SemVer("1.9.0")!, "semver numeric ordering")
+    ok(SemVer("2.0.0")! > SemVer("1.9.9")!, "semver major ordering")
+
+    let json = #"{"tag_name":"v0.0.2","html_url":"https://r/v0.0.2","assets":[{"name":"ColdCoach.dmg","browser_download_url":"https://d/ColdCoach.dmg"}]}"#
+    let info = ReleaseCheck.parseLatestRelease(Data(json.utf8))
+    eq(info?.version, SemVer(major: 0, minor: 0, patch: 2), "release parse version")
+    eq(info?.dmgURL, "https://d/ColdCoach.dmg", "release parse dmg asset")
+    ok(ReleaseCheck.parseLatestRelease(Data(#"{"tag_name":"nightly"}"#.utf8)) == nil, "release parse nil bad tag")
+
+    if let info {
+        if case let .available(v, _, _) = ReleaseCheck.updateDecision(current: SemVer(major: 0, minor: 0, patch: 1), release: info) {
+            eq(v, SemVer(major: 0, minor: 0, patch: 2), "update available when newer")
+        } else { failures += 1; checks += 1; print("FAIL: expected available update") }
+        eq(ReleaseCheck.updateDecision(current: SemVer(major: 0, minor: 1, patch: 0), release: info), .upToDate, "no update when current newer")
+
+        // evaluate: distinguish "could not check" from "no newer release"
+        eq(ReleaseCheck.evaluate(fetch: .unavailable, current: SemVer(major: 0, minor: 0, patch: 1)), .unchanged, "evaluate unavailable -> unchanged (no clobber)")
+        eq(ReleaseCheck.evaluate(fetch: .noRelease, current: SemVer(major: 0, minor: 0, patch: 1)), .upToDate, "evaluate noRelease -> upToDate")
+        eq(ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 0, patch: 1)),
+           .updateAvailable(version: SemVer(major: 0, minor: 0, patch: 2), releaseURL: "https://r/v0.0.2", dmgURL: "https://d/ColdCoach.dmg"),
+           "evaluate newer release -> updateAvailable")
+        eq(ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 1, patch: 0)), .upToDate, "evaluate older release -> upToDate")
+    }
+
+    eq(ReleaseCheck.installChannel(bundlePath: "/opt/homebrew/Caskroom/coldcoach/0.0.1/ColdCoach.app", caskroomExists: true), .brew, "channel brew via caskroom path")
+    eq(ReleaseCheck.installChannel(bundlePath: "/Users/x/repos/coldcoach/build/ColdCoach.app", caskroomExists: false), .source, "channel source via build path")
+    eq(ReleaseCheck.installChannel(bundlePath: "/Applications/ColdCoach.app", caskroomExists: true), .brew, "channel brew via caskroom exists")
+    eq(ReleaseCheck.installChannel(bundlePath: "/Applications/ColdCoach.app", caskroomExists: false), .dmg, "channel dmg fallback")
+
+    ok(AppSettings.default.autoUpdateEnabled, "autoUpdate default on")
+    ok(AppSettings.default.lastUpdateCheck == nil, "lastUpdateCheck default nil")
+    var us = AppSettings.default; us.autoUpdateEnabled = false; us.lastUpdateCheck = Date(timeIntervalSince1970: 1_700_000_000)
+    let ud = try JSONEncoder().encode(us)
+    let ub = try JSONDecoder().decode(AppSettings.self, from: ud)
+    eq(ub, us, "settings round trip with update fields")
+}
+
 // MARK: - Summary
 if failures == 0 {
     print("ALL PASS — \(checks) checks")

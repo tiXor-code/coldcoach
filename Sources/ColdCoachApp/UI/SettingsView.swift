@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ColdCoachCore
 
 struct SettingsView: View {
@@ -54,8 +55,30 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Software update") {
+                Toggle("Check for updates automatically", isOn: $model.settings.autoUpdateEnabled)
+                HStack {
+                    Button("Check now") { Task { await model.checkForUpdates(force: true) } }
+                    Spacer()
+                    if let last = model.settings.lastUpdateCheck {
+                        Text("Last checked \(last.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if let update = model.availableUpdate {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Version \(update.version.description) available", systemImage: "arrow.down.circle")
+                            .foregroundStyle(.blue).font(.caption)
+                        Text(update.explanation).font(.caption).foregroundStyle(.secondary)
+                        updateAction(update)
+                    }
+                } else {
+                    Text("You're on \(model.currentVersionString).").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             Section("About") {
-                LabeledContent("ColdCoach", value: "v0.1 · MIT · local-first")
+                LabeledContent("Version", value: "\(model.currentVersionString) · MIT · local-first")
                 Link("Source & docs ↗", destination: URL(string: "https://github.com/tiXor-code/coldcoach")!)
                 Text("Transcription runs on-device (WhisperKit). Only your provider sees text you send it. Nothing is uploaded anywhere else.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -76,6 +99,23 @@ struct SettingsView: View {
                 model.refreshKeyState()
             }
         )
+    }
+
+    @ViewBuilder
+    private func updateAction(_ update: UpdateInfo) -> some View {
+        switch update.channel {
+        case .brew:
+            Button("Copy update command") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(UpdateInfo.brewCommand, forType: .string)
+            }
+            .font(.caption)
+        case .dmg, .source:
+            Button("Open release page") {
+                if let url = URL(string: update.dmgURL ?? update.releaseURL) { NSWorkspace.shared.open(url) }
+            }
+            .font(.caption)
+        }
     }
 
     @ViewBuilder
