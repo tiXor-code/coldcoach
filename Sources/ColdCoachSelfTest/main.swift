@@ -314,6 +314,14 @@ do {
             eq(v, SemVer(major: 0, minor: 0, patch: 2), "update available when newer")
         } else { failures += 1; checks += 1; print("FAIL: expected available update") }
         eq(ReleaseCheck.updateDecision(current: SemVer(major: 0, minor: 1, patch: 0), release: info), .upToDate, "no update when current newer")
+
+        // evaluate: distinguish "could not check" from "no newer release"
+        eq(ReleaseCheck.evaluate(fetch: .unavailable, current: SemVer(major: 0, minor: 0, patch: 1)), .unchanged, "evaluate unavailable -> unchanged (no clobber)")
+        eq(ReleaseCheck.evaluate(fetch: .noRelease, current: SemVer(major: 0, minor: 0, patch: 1)), .upToDate, "evaluate noRelease -> upToDate")
+        eq(ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 0, patch: 1)),
+           .updateAvailable(version: SemVer(major: 0, minor: 0, patch: 2), releaseURL: "https://r/v0.0.2", dmgURL: "https://d/ColdCoach.dmg"),
+           "evaluate newer release -> updateAvailable")
+        eq(ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 1, patch: 0)), .upToDate, "evaluate older release -> upToDate")
     }
 
     eq(ReleaseCheck.installChannel(bundlePath: "/opt/homebrew/Caskroom/coldcoach/0.0.1/ColdCoach.app", caskroomExists: true), .brew, "channel brew via caskroom path")

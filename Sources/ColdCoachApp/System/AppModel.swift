@@ -93,14 +93,17 @@ final class AppModel: ObservableObject {
     func checkForUpdates(force: Bool = false) async {
         guard force || settings.autoUpdateEnabled else { return }
         if !force, let last = settings.lastUpdateCheck, Date().timeIntervalSince(last) < 24 * 3600 { return }
-        let release = await GitHubReleaseClient().fetchLatest()
-        settings.lastUpdateCheck = Date()
-        saveSettings()
-        guard let release else { availableUpdate = nil; return }
-        switch ReleaseCheck.updateDecision(current: currentVersion, release: release) {
+        let outcome = await GitHubReleaseClient().fetchLatest()
+        switch ReleaseCheck.evaluate(fetch: outcome, current: currentVersion) {
+        case .unchanged:
+            // Could not check. Leave availableUpdate and lastUpdateCheck untouched so a
+            // transient failure neither hides a known update nor blocks a same-day retry.
+            return
         case .upToDate:
+            settings.lastUpdateCheck = Date(); saveSettings()
             availableUpdate = nil
-        case let .available(version, releaseURL, dmgURL):
+        case let .updateAvailable(version, releaseURL, dmgURL):
+            settings.lastUpdateCheck = Date(); saveSettings()
             availableUpdate = UpdateInfo(version: version, releaseURL: releaseURL, dmgURL: dmgURL, channel: InstallChannelDetector.detect())
         }
     }

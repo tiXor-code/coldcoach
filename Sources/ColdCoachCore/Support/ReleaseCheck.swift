@@ -20,6 +20,22 @@ public enum UpdateDecision: Equatable, Sendable {
     case available(version: SemVer, releaseURL: String, dmgURL: String?)
 }
 
+/// The outcome of trying to fetch the latest release. Distinguishes "could not check"
+/// from "checked, and there is no (newer) release", so a transient failure is never
+/// mistaken for a definitive up-to-date result.
+public enum FetchOutcome: Equatable, Sendable {
+    case release(ReleaseInfo)  // reached GitHub and parsed a valid release
+    case noRelease             // reached GitHub, but no valid release exists (e.g. 404 / none published)
+    case unavailable           // could not reach or verify GitHub (offline, timeout, rate limit, 5xx)
+}
+
+/// What the app should do after a check.
+public enum UpdateCheckResult: Equatable, Sendable {
+    case unchanged                                                             // could not check: keep prior state, do not stamp
+    case upToDate                                                              // confirmed no newer release: clear + stamp
+    case updateAvailable(version: SemVer, releaseURL: String, dmgURL: String?) // show it + stamp
+}
+
 /// How this copy of the app was installed. Determines the assisted-update call to action.
 public enum InstallChannel: String, Equatable, Sendable {
     case brew    // Homebrew cask -> tell the user to `brew upgrade`
@@ -54,6 +70,26 @@ public enum ReleaseCheck {
         release.version > current
             ? .available(version: release.version, releaseURL: release.releaseURL, dmgURL: release.dmgURL)
             : .upToDate
+    }
+
+    /// Turn a fetch outcome into an action. A failed fetch (`.unavailable`) yields
+    /// `.unchanged`, so the caller must leave both the shown update and the
+    /// last-checked timestamp alone -- a transient failure never hides a known update
+    /// nor blocks a same-day retry.
+    public static func evaluate(fetch: FetchOutcome, current: SemVer) -> UpdateCheckResult {
+        switch fetch {
+        case .unavailable:
+            return .unchanged
+        case .noRelease:
+            return .upToDate
+        case let .release(info):
+            switch updateDecision(current: current, release: info) {
+            case .upToDate:
+                return .upToDate
+            case let .available(version, releaseURL, dmgURL):
+                return .updateAvailable(version: version, releaseURL: releaseURL, dmgURL: dmgURL)
+            }
+        }
     }
 
     /// Classify the install channel from the bundle path plus whether a Homebrew

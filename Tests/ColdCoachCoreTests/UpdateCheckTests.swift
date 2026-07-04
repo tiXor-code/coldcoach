@@ -59,6 +59,30 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertEqual(ReleaseCheck.updateDecision(current: SemVer(major: 0, minor: 1, patch: 0), release: release), .upToDate)
     }
 
+    // MARK: - Evaluate (could-not-check vs no-release vs available)
+
+    func testEvaluateUnavailableIsUnchanged() {
+        // A failed fetch must not clear a known update or stamp the check timestamp.
+        XCTAssertEqual(ReleaseCheck.evaluate(fetch: .unavailable, current: SemVer(major: 0, minor: 0, patch: 1)), .unchanged)
+    }
+
+    func testEvaluateNoReleaseIsUpToDate() {
+        XCTAssertEqual(ReleaseCheck.evaluate(fetch: .noRelease, current: SemVer(major: 0, minor: 0, patch: 1)), .upToDate)
+    }
+
+    func testEvaluateNewerReleaseIsAvailable() {
+        let info = ReleaseInfo(tag: "v0.0.2", version: SemVer(major: 0, minor: 0, patch: 2), releaseURL: "https://r", dmgURL: "https://d.dmg")
+        XCTAssertEqual(
+            ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 0, patch: 1)),
+            .updateAvailable(version: SemVer(major: 0, minor: 0, patch: 2), releaseURL: "https://r", dmgURL: "https://d.dmg")
+        )
+    }
+
+    func testEvaluateOlderReleaseIsUpToDate() {
+        let info = ReleaseInfo(tag: "v0.0.2", version: SemVer(major: 0, minor: 0, patch: 2), releaseURL: "https://r", dmgURL: nil)
+        XCTAssertEqual(ReleaseCheck.evaluate(fetch: .release(info), current: SemVer(major: 0, minor: 1, patch: 0)), .upToDate)
+    }
+
     // MARK: - Install channel
 
     func testInstallChannelClassification() {
