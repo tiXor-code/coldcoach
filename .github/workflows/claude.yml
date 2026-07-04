@@ -37,6 +37,10 @@ jobs:
           # the fix on the PR branch, and push. Keep ColdCoachCore pure and add tests
           # in BOTH suites; run `swift run coldcoach-selftest` to check before pushing.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The reviewer posts its "@claude fix ..." comment as the Claude App bot, so
+          # the fixer must accept that bot actor (named, not "*", to keep this public
+          # repo safe from external bots triggering the action).
+          allowed_bots: "claude[bot],claude"
           claude_args: |
             --allowedTools "Bash(swift build:*),Bash(swift run:*),Bash(swift test:*),Bash(git:*)"
             --max-turns 40
