@@ -55,6 +55,7 @@ final class AppModel: ObservableObject {
         switch settings.provider {
         case .anthropic: return ClaudeProvider(apiKey: key)
         case .openai: return OpenAIProvider(apiKey: key)
+        case .openrouter: return OpenRouterProvider(apiKey: key)
         }
     }
 

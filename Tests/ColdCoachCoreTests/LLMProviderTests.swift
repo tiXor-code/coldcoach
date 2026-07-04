@@ -80,6 +80,55 @@ final class LLMProviderTests: XCTestCase {
         }
     }
 
+    // MARK: - OpenRouter
+
+    func testOpenRouterReusesOpenAIWireSystemFirst() throws {
+        let req = LLMRequest(model: "openai/gpt-4o-mini", system: "S", messages: [LLMMessage(role: .user, content: "hi")], maxTokens: 50)
+        let data = try OpenRouterProvider.encodeBody(req)
+        let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(obj["model"] as? String, "openai/gpt-4o-mini")
+        let messages = try XCTUnwrap(obj["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[0]["role"] as? String, "system")
+        XCTAssertEqual(messages[1]["role"] as? String, "user")
+    }
+
+    func testOpenRouterParseSuccess() throws {
+        let json = #"{"choices":[{"message":{"role":"assistant","content":"routed reply"}}]}"#
+        XCTAssertEqual(try OpenRouterProvider.parseText(status: 200, data: Data(json.utf8)), "routed reply")
+    }
+
+    func testOpenRouterParseHTTPError() {
+        let json = #"{"error":{"message":"no credits"}}"#
+        XCTAssertThrowsError(try OpenRouterProvider.parseText(status: 402, data: Data(json.utf8))) { error in
+            guard case let LLMError.http(code, message) = error else { return XCTFail("expected http") }
+            XCTAssertEqual(code, 402)
+            XCTAssertEqual(message, "no credits")
+        }
+    }
+
+    func testOpenRouterBuildURLRequestTargetsOpenRouterWithHeaders() throws {
+        let provider = OpenRouterProvider(apiKey: "sk-or-test")
+        let req = try provider.buildURLRequest(.single(model: "openai/gpt-4o-mini", system: nil, user: "hi", maxTokens: 1))
+        XCTAssertEqual(req.url?.host, "openrouter.ai")
+        XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer sk-or-test")
+        XCTAssertEqual(req.value(forHTTPHeaderField: "HTTP-Referer"), "https://github.com/tiXor-code/coldcoach")
+        XCTAssertEqual(req.value(forHTTPHeaderField: "X-Title"), "ColdCoach")
+    }
+
+    func testOpenRouterMissingKeyThrows() {
+        let provider = OpenRouterProvider(apiKey: "")
+        XCTAssertThrowsError(try provider.buildURLRequest(.single(model: "m", system: nil, user: "hi", maxTokens: 1))) { error in
+            guard case LLMError.missingKey = error else { return XCTFail("expected missingKey") }
+        }
+    }
+
+    func testOpenRouterProviderKindDefaults() {
+        XCTAssertEqual(ProviderKind.openrouter.defaultCoachingModel, "openai/gpt-4o-mini")
+        XCTAssertEqual(ProviderKind.openrouter.defaultPlaybookModel, "openai/gpt-4o")
+        XCTAssertEqual(ProviderKind.openrouter.displayName, "OpenRouter")
+    }
+
     // MARK: - Mock
 
     func testMockRecordsRequestsAndRepeatsLast() async throws {
