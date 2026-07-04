@@ -27,7 +27,7 @@ Cockpit**.
 ## Requirements
 
 - Apple Silicon Mac, macOS 14 (Sonoma) or later.
-- A **Claude (Anthropic)** or **OpenAI** API key (bring your own — stored in the macOS Keychain).
+- A **Claude (Anthropic)**, **OpenAI**, or **OpenRouter** API key (bring your own — stored in the macOS Keychain). One OpenRouter key fronts many models.
 - Transcription is on-device (WhisperKit); the speech model downloads on first use.
 
 ## Install
@@ -55,7 +55,7 @@ Homebrew strips the Gatekeeper quarantine automatically, so this is the lowest-f
 
 ## First run
 
-1. **Connect your AI** — pick Claude or OpenAI, paste your API key (stored in the Keychain).
+1. **Connect your AI** — pick Claude, OpenAI, or OpenRouter, paste your API key (stored in the Keychain). With OpenRouter, set the model IDs to namespaced slugs (for example `openai/gpt-4o-mini`); see https://openrouter.ai/models.
 2. **Grant permissions** — Microphone (both modes) and, for System-audio mode, Screen Recording.
 3. **Create a playbook** — one sentence about your offer, then Generate.
 4. **Start a call** — pick the playbook and a capture mode, put your call on, and hit Start.
@@ -76,7 +76,7 @@ AudioSource ──PCM──▶ Transcription ──segments──▶ TranscriptS
                           CoachingEngine (fires on prospect objection / question / buying signal)
                                           │  builds a prompt from Playbook + recent transcript
                                           ▼
-                             LLMProvider (Claude | OpenAI)  ──▶  floating overlay card
+                       LLMProvider (Claude | OpenAI | OpenRouter)  ──▶  floating overlay card
                                           │
                           after call ──▶ outcome logged ──▶ Playbook re-weighted
 ```

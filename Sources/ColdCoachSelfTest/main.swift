@@ -98,6 +98,33 @@ do {
        "hi there", "openai parse")
 }
 
+// MARK: - OpenRouter wire format
+do {
+    let req = LLMRequest(model: "openai/gpt-4o-mini", system: "S", messages: [LLMMessage(role: .user, content: "hi")], maxTokens: 50)
+    let data = try OpenRouterProvider.encodeBody(req)
+    let obj = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    eq(obj["model"] as? String, "openai/gpt-4o-mini", "openrouter model namespaced")
+    let msgs = obj["messages"] as! [[String: Any]]
+    eq(msgs.count, 2, "openrouter message count")
+    eq(msgs[0]["role"] as? String, "system", "openrouter system first")
+    eq(try OpenRouterProvider.parseText(status: 200, data: Data(#"{"choices":[{"message":{"content":"routed"}}]}"#.utf8)),
+       "routed", "openrouter parse (openai wire)")
+
+    let urlReq = try OpenRouterProvider(apiKey: "sk-or-test")
+        .buildURLRequest(.single(model: "openai/gpt-4o-mini", system: nil, user: "hi", maxTokens: 1))
+    eq(urlReq.url?.host, "openrouter.ai", "openrouter endpoint host")
+    eq(urlReq.value(forHTTPHeaderField: "Authorization"), "Bearer sk-or-test", "openrouter bearer auth")
+    eq(urlReq.value(forHTTPHeaderField: "HTTP-Referer"), "https://github.com/tiXor-code/coldcoach", "openrouter referer header")
+    eq(urlReq.value(forHTTPHeaderField: "X-Title"), "ColdCoach", "openrouter title header")
+    throwsError("openrouter missing key throws") {
+        _ = try OpenRouterProvider(apiKey: "").buildURLRequest(.single(model: "m", system: nil, user: "hi", maxTokens: 1))
+    }
+
+    eq(ProviderKind.openrouter.defaultCoachingModel, "openai/gpt-4o-mini", "openrouter default coaching model")
+    eq(ProviderKind.openrouter.defaultPlaybookModel, "openai/gpt-4o", "openrouter default playbook model")
+    eq(ProviderKind.openrouter.displayName, "OpenRouter", "openrouter display name")
+}
+
 // MARK: - Mock provider
 do {
     let mock = MockLLMProvider(responses: ["a", "b"])
