@@ -4,12 +4,12 @@
 # then: brew install --cask tiXor-code/coldcoach/coldcoach
 #
 # Homebrew strips the Gatekeeper quarantine on install, so an ad-hoc-signed .dmg needs
-# no notarization. Replace `sha256 :no_check` with the real release checksum once a
-# GitHub release exists (shasum -a 256 ColdCoach.dmg).
+# no notarization. The sha256 below is the checksum of the v0.0.1 release .dmg
+# (regenerate on each release with: shasum -a 256 build/ColdCoach.dmg).
 
 cask "coldcoach" do
   version "0.0.1"
-  sha256 :no_check
+  sha256 "a0ba8319dc0b402061fee5c9f12a816d23f55ca1cc3b2d4b8b08b890e84a2360"
 
   url "https://github.com/tiXor-code/coldcoach/releases/download/v#{version}/ColdCoach.dmg"
   name "ColdCoach"
