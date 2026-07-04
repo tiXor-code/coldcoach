@@ -10,6 +10,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var playbooks: [Playbook] = []
     @Published private(set) var calls: [CallRecord] = []
     @Published private(set) var hasAPIKey: Bool = false
+    /// Set when a newer release is available; drives the Settings row and the update banner.
+    @Published var availableUpdate: UpdateInfo?
 
     let store: Store
 
@@ -77,4 +79,48 @@ final class AppModel: ObservableObject {
     func reloadCalls() { calls = ((try? store.loadCalls()) ?? []).sorted { $0.startedAt > $1.startedAt } }
     func saveCall(_ call: CallRecord) { try? store.saveCall(call); reloadCalls() }
     func deleteCall(_ id: UUID) { try? store.deleteCall(id: id); reloadCalls() }
+
+    // MARK: - Software update (check + assisted; never self-replaces the binary)
+
+    /// This build's version, read from the bundle (the single runtime source of truth).
+    var currentVersionString: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    }
+    var currentVersion: SemVer { SemVer(currentVersionString) ?? SemVer(major: 0, minor: 0, patch: 0) }
+
+    /// Check GitHub Releases for a newer version. Respects the auto-update toggle and
+    /// throttles to ~once/day unless `force` (the menu / "Check now" button).
+    func checkForUpdates(force: Bool = false) async {
+        guard force || settings.autoUpdateEnabled else { return }
+        if !force, let last = settings.lastUpdateCheck, Date().timeIntervalSince(last) < 24 * 3600 { return }
+        let release = await GitHubReleaseClient().fetchLatest()
+        settings.lastUpdateCheck = Date()
+        saveSettings()
+        guard let release else { availableUpdate = nil; return }
+        switch ReleaseCheck.updateDecision(current: currentVersion, release: release) {
+        case .upToDate:
+            availableUpdate = nil
+        case let .available(version, releaseURL, dmgURL):
+            availableUpdate = UpdateInfo(version: version, releaseURL: releaseURL, dmgURL: dmgURL, channel: InstallChannelDetector.detect())
+        }
+    }
+}
+
+/// A pending update plus how to install it (depends on how this copy was installed).
+struct UpdateInfo: Equatable {
+    let version: SemVer
+    let releaseURL: String
+    let dmgURL: String?
+    let channel: InstallChannel
+
+    /// The Homebrew upgrade command (used when installed via cask).
+    static let brewCommand = "brew upgrade --cask coldcoach"
+
+    var explanation: String {
+        switch channel {
+        case .brew: return "Installed via Homebrew. Run \(Self.brewCommand)."
+        case .dmg: return "Download the new .dmg from the release page."
+        case .source: return "Built from source. See the release notes."
+        }
+    }
 }

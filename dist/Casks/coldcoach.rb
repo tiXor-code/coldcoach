@@ -8,7 +8,7 @@
 # GitHub release exists (shasum -a 256 ColdCoach.dmg).
 
 cask "coldcoach" do
-  version "0.1.0"
+  version "0.0.1"
   sha256 :no_check
 
   url "https://github.com/tiXor-code/coldcoach/releases/download/v#{version}/ColdCoach.dmg"
