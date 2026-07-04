@@ -14,6 +14,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// WhisperKit model name (downloaded on first run). "base" is a fast, safe default.
     public var whisperModel: String
     public var overlayOpacity: Double
+    /// Check GitHub Releases for a newer version on launch (and via the menu).
+    public var autoUpdateEnabled: Bool
+    /// When the last update check ran; used to throttle to ~once/day.
+    public var lastUpdateCheck: Date?
 
     public init(
         provider: ProviderKind = .anthropic,
@@ -22,7 +26,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
         defaultAudioMode: AudioMode = .speakerphoneMic,
         diarizationEnabled: Bool = true,
         whisperModel: String = "base",
-        overlayOpacity: Double = 0.95
+        overlayOpacity: Double = 0.95,
+        autoUpdateEnabled: Bool = true,
+        lastUpdateCheck: Date? = nil
     ) {
         self.provider = provider
         self.coachingModel = coachingModel ?? provider.defaultCoachingModel
@@ -31,6 +37,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.diarizationEnabled = diarizationEnabled
         self.whisperModel = whisperModel
         self.overlayOpacity = overlayOpacity
+        self.autoUpdateEnabled = autoUpdateEnabled
+        self.lastUpdateCheck = lastUpdateCheck
     }
 
     public static let `default` = AppSettings()
