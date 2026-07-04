@@ -1,0 +1,42 @@
+name: Claude
+
+# The coding agent for the fix loop. When the reviewer (or a human) comments
+# "@claude ..." on a PR or issue, Claude checks out the branch, implements the
+# requested change, and pushes it. Because the Claude GitHub App supplies the git
+# identity, that push re-triggers CI, which re-triggers the reviewer (pr-review.yml)
+# once CI is green -- closing the loop with no human in the middle.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  claude:
+    if: >
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && github.event.review.body != null && contains(github.event.review.body, '@claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          # No prompt -> interactive mode: respond to the @claude request, implement
+          # the fix on the PR branch, and push. Keep ColdCoachCore pure and add tests
+          # in BOTH suites; run `swift run coldcoach-selftest` to check before pushing.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --allowedTools "Bash(swift build:*),Bash(swift run:*),Bash(swift test:*),Bash(git:*)"
+            --max-turns 40

@@ -1,0 +1,72 @@
+name: PR Watchdog
+
+# Recurring oversight: makes sure the agents actually do their jobs. Every 6h it
+# sweeps open PRs and flags anything stuck (no review, a stalled fix loop, an
+# approved+green PR that never merged, or a loop that blew its cap). Stuck items are
+# escalated two ways: a single `needs-human` issue (deduped) and, if the Telegram
+# secrets are present, a push message.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: write
+  id-token: write
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: Ensure needs-human label
+        run: gh label create needs-human --repo "${{ github.repository }}" --color b60205 --description "Autonomous pipeline needs a human" --force || true
+
+      - name: Sweep open PRs
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are the watchdog for the autonomous PR pipeline in ${{ github.repository }}. Using the
+            gh CLI, audit that every agent is doing its job. Inspect open PRs with:
+            `gh pr list --state open --json number,title,createdAt,updatedAt,labels,reviewDecision,statusCheckRollup`.
+
+            For each open PR, act:
+            - No review yet, but CI has finished -> re-trigger the reviewer:
+              `gh workflow run pr-review.yml -f pr=<n>`.
+            - reviewDecision CHANGES_REQUESTED with no new commit in > 6h -> the fix loop is stalled;
+              this needs a human.
+            - Already >= 3 CHANGES_REQUESTED reviews, or already labeled needs-human -> a human is needed.
+            - APPROVED and all checks green but still open -> re-trigger the reviewer to merge:
+              `gh workflow run pr-review.yml -f pr=<n>`.
+
+            For anything that needs a human: ensure exactly ONE open issue labeled `needs-human`
+            summarizes it and links the PR. Search first (`gh issue list --label needs-human --state open`)
+            and update that issue instead of creating duplicates.
+
+            Finally write a short status paragraph to $GITHUB_STEP_SUMMARY.
+          claude_args: |
+            --allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh workflow run:*),Bash(gh label:*)"
+            --max-turns 40
+
+      - name: Telegram escalation
+        if: env.TELEGRAM_BOT_TOKEN != ''
+        run: |
+          count=$(gh issue list --repo "${{ github.repository }}" --label needs-human --state open --json number --jq 'length')
+          if [ "${count:-0}" -gt 0 ]; then
+            list=$(gh issue list --repo "${{ github.repository }}" --label needs-human --state open --json number,title,url --jq '.[] | "#\(.number) \(.title)\n\(.url)"')
+            text=$(printf 'ColdCoach pipeline needs a human (%s open):\n%s' "$count" "$list")
+            curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+              --data-urlencode "text=${text}" \
+              -d disable_web_page_preview=true >/dev/null || true
+          fi

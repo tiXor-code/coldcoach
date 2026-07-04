@@ -1,76 +1,106 @@
-name: PR Review & Tracking
+name: PR Review & Merge
 
-# On every PR: open a tracking issue (the review "ticket") and run an agentic
-# Claude review that comments inline. The review step no-ops gracefully until the
-# CLAUDE_CODE_OAUTH_TOKEN secret is set (generate one with `claude setup-token`).
+# Autonomous reviewer + merge gate.
+#
+# This runs AFTER the CI workflow finishes on a PR, so it only ever fires once the
+# build + self-test + XCTest are already GREEN. The reviewer takes a fresh look at the
+# whole diff vs main, judges correctness / quality / spec-accuracy, then EITHER
+# squash-merges the PR OR requests changes and tags @claude to fix (see claude.yml).
+# A hard cap (>= 3 change-requests) escalates to a human instead of looping forever.
+#
+# Auth: the Claude subscription token (CLAUDE_CODE_OAUTH_TOKEN). The Claude GitHub App
+# supplies the git identity, so its actions re-trigger CI and this workflow.
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to review"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
 
 jobs:
-  ticket:
-    name: Create review ticket
-    if: github.event.action == 'opened'
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: read
-    steps:
-      - name: Create tracking issue
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          gh label create pr-review --color 5319e7 \
-            --description "Agentic review ticket for a PR" --force || true
-          gh issue create \
-            --title "Review: ${PR_TITLE} (#${PR_NUM})" \
-            --label pr-review \
-            --body "Tracking ticket for PR #${PR_NUM}: ${PR_URL}
-
-          The agentic reviewer runs automatically on this PR.
-
-          - [ ] Claude review posted
-          - [ ] Findings addressed
-          - [ ] CI green (selftest + swift test + app build)
-          - [ ] Merged"
-
   review:
-    name: Claude review
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      # claude-code-action@v1 fetches an OIDC token.
-      id-token: write
     env:
-      # Mapped to env so the step below can gate on its presence
-      # (the `secrets` context is not allowed in `if:` conditions).
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     steps:
-      - name: Checkout
-        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+      - name: Resolve PR number + head
+        id: pr
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            num="${{ github.event.inputs.pr }}"
+          else
+            num=$(echo '${{ toJson(github.event.workflow_run.pull_requests) }}' | jq -r '.[0].number // empty')
+            if [ -z "$num" ]; then
+              num=$(gh pr list --repo "${{ github.repository }}" --head "${{ github.event.workflow_run.head_branch }}" --state open --json number --jq '.[0].number // empty')
+            fi
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+          if [ -n "$num" ]; then
+            head=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefOid --jq .headRefOid)
+            echo "head=$head" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure needs-human label
+        if: steps.pr.outputs.number != ''
+        run: gh label create needs-human --repo "${{ github.repository }}" --color b60205 --description "Autonomous pipeline needs a human" --force || true
+
+      - name: Checkout PR head
+        if: steps.pr.outputs.number != ''
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.pr.outputs.head }}
           fetch-depth: 0
 
-      - name: Claude code review
-        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+      - name: Review, then merge or request changes
+        if: steps.pr.outputs.number != '' && env.CLAUDE_CODE_OAUTH_TOKEN != ''
         uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ env.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Review this pull request as a senior Swift reviewer for ColdCoach, a local-first
-            macOS cold-call coach. Focus on:
-              - correctness bugs, edge cases, and race conditions
-              - security (the API key must stay in the Keychain, never on disk or in logs)
-              - unnecessary complexity or duplication
-              - that new business logic sits in the pure `ColdCoachCore` and is covered by tests
-                in BOTH the XCTest suite and the `coldcoach-selftest` runner
-              - that the coaching engine stays deterministic (debounce on transcript time, not wall-clock)
-            Post concise, actionable inline comments. Praise is not needed; flag what matters.
-            Repository: ${{ github.repository }} · PR #${{ github.event.pull_request.number }}.
+            You are the autonomous code reviewer and merge gate for ColdCoach, a local-first macOS
+            cold-call coach. Handle pull request #${{ steps.pr.outputs.number }} in ${{ github.repository }}.
+
+            CI (build + self-test + XCTest) has ALREADY PASSED on this PR's head commit -- this job
+            only runs after CI success. The objective test gate is green; you are the qualitative gate.
+            Follow the review rubric in CLAUDE.md.
+
+            Steps (use the gh CLI, act decisively, do not ask questions):
+            1. Read the PR: `gh pr view ${{ steps.pr.outputs.number }}` and
+               `gh pr diff ${{ steps.pr.outputs.number }}`. Take a fresh look at the ENTIRE diff vs main.
+            2. Judge: correctness and edge cases; code quality and simplicity; and how accurately the
+               change implements the PR description (the branch's stated spec). Verify in particular:
+               new business logic sits in the pure ColdCoachCore with tests in BOTH the XCTest suite
+               and the coldcoach-selftest runner; the API key stays in the Keychain (never on disk or
+               in logs); the coaching engine stays deterministic (debounce on transcript time, not
+               wall-clock).
+            3. Decide:
+               - APPROVE + MERGE if it is correct, complete, and good quality:
+                 `gh pr review ${{ steps.pr.outputs.number }} --approve --body "<2-4 line summary of what you verified>"`
+                 then `gh pr merge ${{ steps.pr.outputs.number }} --squash --delete-branch`.
+               - Otherwise, first check the loop cap:
+                 `gh pr view ${{ steps.pr.outputs.number }} --json reviews` and count CHANGES_REQUESTED reviews.
+                 If there are already 3 or more, do NOT loop: run
+                 `gh pr edit ${{ steps.pr.outputs.number }} --add-label needs-human`, comment that the
+                 review loop did not converge and a human should look, and STOP.
+                 If fewer than 3, run
+                 `gh pr review ${{ steps.pr.outputs.number }} --request-changes --body "<specific, actionable items>"`
+                 then `gh pr comment ${{ steps.pr.outputs.number }} --body "@claude please address this review: <concise bullet list>"`.
+                 Do NOT merge.
+          claude_args: |
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh pr checks:*),Bash(gh label:*),Bash(git log:*),Bash(git diff:*),Bash(cat:*),Bash(ls:*),Bash(grep:*)"
+            --max-turns 40
