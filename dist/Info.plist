@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>ColdCoach</string>
+	<key>CFBundleDisplayName</key>
+	<string>ColdCoach</string>
+	<key>CFBundleIdentifier</key>
+	<string>net.coldcoach.app</string>
+	<key>CFBundleExecutable</key>
+	<string>ColdCoach</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ColdCoach listens to your call audio on-device to transcribe it and coach you in real time. Audio never leaves your Mac.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>ColdCoach captures system audio (System-audio mode) to hear the other side of a call from your softphone or Zoom. Only audio is used; no screenshots are taken.</string>
+</dict>
+</plist>

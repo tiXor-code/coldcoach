@@ -1,0 +1,13 @@
+[
+  { "role": "rep",      "text": "Hi, is this Jordan? Alex here from ColdCoach.",            "start": 0.0,  "end": 3.0 },
+  { "role": "prospect", "text": "Who is this?",                                             "start": 3.0,  "end": 5.0 },
+  { "role": "prospect", "text": "Not a good time.",                                         "start": 5.5,  "end": 6.8 },
+  { "role": "rep",      "text": "Totally fair, twenty seconds and I am gone.",              "start": 7.0,  "end": 10.0 },
+  { "role": "prospect", "text": "We already have a vendor.",                                "start": 12.0, "end": 14.0 },
+  { "role": "rep",      "text": "Makes sense, most folks we help did too.",                 "start": 14.0, "end": 18.0 },
+  { "role": "prospect", "text": "How much does it cost?",                                   "start": 22.0, "end": 24.0 },
+  { "role": "rep",      "text": "Depends on team size, ballpark a few hundred a month.",    "start": 24.0, "end": 27.0 },
+  { "role": "prospect", "text": "Mm, okay.",                                                "start": 30.0, "end": 31.0 },
+  { "role": "rep",      "text": "Can I send a two-line summary and grab fifteen minutes Thursday?", "start": 31.0, "end": 34.0 },
+  { "role": "prospect", "text": "Yeah that works.",                                         "start": 35.0, "end": 36.0 }
+]

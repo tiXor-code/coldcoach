@@ -1,0 +1,21 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode (if opened)
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Build artifacts
+dist/build/
+*.app
+*.dmg
+
+# macOS
+.DS_Store
+
+# App runtime data / secrets (never commit)
+*.env
+Secrets.plist
