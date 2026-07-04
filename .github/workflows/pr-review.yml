@@ -1,0 +1,76 @@
+name: PR Review & Tracking
+
+# On every PR: open a tracking issue (the review "ticket") and run an agentic
+# Claude review that comments inline. The review step no-ops gracefully until the
+# CLAUDE_CODE_OAUTH_TOKEN secret is set (generate one with `claude setup-token`).
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  ticket:
+    name: Create review ticket
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Create tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh label create pr-review --color 5319e7 \
+            --description "Agentic review ticket for a PR" --force || true
+          gh issue create \
+            --title "Review: ${PR_TITLE} (#${PR_NUM})" \
+            --label pr-review \
+            --body "Tracking ticket for PR #${PR_NUM}: ${PR_URL}
+
+          The agentic reviewer runs automatically on this PR.
+
+          - [ ] Claude review posted
+          - [ ] Findings addressed
+          - [ ] CI green (selftest + swift test + app build)
+          - [ ] Merged"
+
+  review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      # claude-code-action@v1 fetches an OIDC token.
+      id-token: write
+    env:
+      # Mapped to env so the step below can gate on its presence
+      # (the `secrets` context is not allowed in `if:` conditions).
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude code review
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ env.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review this pull request as a senior Swift reviewer for ColdCoach, a local-first
+            macOS cold-call coach. Focus on:
+              - correctness bugs, edge cases, and race conditions
+              - security (the API key must stay in the Keychain, never on disk or in logs)
+              - unnecessary complexity or duplication
+              - that new business logic sits in the pure `ColdCoachCore` and is covered by tests
+                in BOTH the XCTest suite and the `coldcoach-selftest` runner
+              - that the coaching engine stays deterministic (debounce on transcript time, not wall-clock)
+            Post concise, actionable inline comments. Praise is not needed; flag what matters.
+            Repository: ${{ github.repository }} · PR #${{ github.event.pull_request.number }}.
