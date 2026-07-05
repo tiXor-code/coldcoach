@@ -108,7 +108,7 @@ final class CallSession: ObservableObject {
         // 2. Open the chosen input device.
         status = .startingAudio
         let source: AudioSource = audioMode == .systemPlusMic
-            ? SystemPlusMicSource()
+            ? SystemPlusMicSource(deviceUID: inputDeviceUID)
             : MicOnlySource(deviceUID: inputDeviceUID)
         self.source = source
         do {
