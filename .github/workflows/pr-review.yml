@@ -71,6 +71,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # A re-review runs via workflow_run after @claude pushes a fix, so the triggering
+          # actor is a bot. Allow the named bots so the loop is not blocked mid-cycle.
+          allowed_bots: "claude[bot],claude,github-actions[bot]"
           prompt: |
             You are the autonomous code reviewer and merge gate for ColdCoach, a local-first macOS
             cold-call coach. Handle pull request #${{ steps.pr.outputs.number }} in ${{ github.repository }}.
