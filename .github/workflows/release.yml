@@ -1,0 +1,90 @@
+name: Release (nightly CalVer)
+
+# Cuts a CalVer release (vYY.MM.DD) at the end of each day, plus on-demand via
+# workflow_dispatch. Idempotent + quiet:
+#   - skips if today's tag already exists (safe to re-run same day)
+#   - skips if there are no new commits since the last release (so identical
+#     builds aren't published and don't nag auto-update clients)
+# The built app's CFBundleShortVersionString is set to the same YY.MM.DD so an
+# updated install stops reporting an older version. SemVer parsing already
+# tolerates the zero-padded date (Int("07") == 7); CalVerReleaseTests locks that.
+
+on:
+  schedule:
+    - cron: '0 20 * * *' # 20:00 UTC = 23:00 Europe/Bucharest (summer, UTC+3)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute CalVer
+        id: v
+        run: |
+          DATE=$(TZ=Europe/Bucharest date +%y.%m.%d)
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to release
+        id: gate
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.v.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "reason=release $TAG already exists"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          LAST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty' 2>/dev/null || echo "")
+          if [ -n "$LAST" ]; then
+            LASTSHA=$(git rev-list -n1 "$LAST" 2>/dev/null || echo "")
+            if [ -n "$LASTSHA" ] && [ "$LASTSHA" = "$(git rev-parse HEAD)" ]; then
+              echo "reason=no new commits since $LAST"
+              echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: Skip notice
+        if: steps.gate.outputs.go != 'true'
+        run: echo "Skipping release — ${{ steps.gate.outputs.reason }}"
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: steps.gate.outputs.go == 'true'
+        with:
+          xcode-version: latest-stable
+
+      - name: Stamp version into Info.plist
+        if: steps.gate.outputs.go == 'true'
+        run: plutil -replace CFBundleShortVersionString -string "${{ steps.v.outputs.date }}" dist/Info.plist
+
+      - name: Build DMG
+        if: steps.gate.outputs.go == 'true'
+        run: make dmg
+
+      - name: Publish release
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          set -euo pipefail
+          SHA=$(shasum -a 256 build/ColdCoach.dmg | awk '{print $1}')
+          gh release create "${{ steps.v.outputs.tag }}" build/ColdCoach.dmg \
+            --target "$GITHUB_SHA" \
+            --title "ColdCoach ${{ steps.v.outputs.tag }}" \
+            --notes "Automated daily build — CalVer ${{ steps.v.outputs.date }}.
+
+          Install: download \`ColdCoach.dmg\`, open it, drag ColdCoach to Applications.
+
+          SHA-256 (ColdCoach.dmg): \`$SHA\`"

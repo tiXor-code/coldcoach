@@ -310,6 +310,15 @@ do {
     ok(SemVer("1.10.0")! > SemVer("1.9.0")!, "semver numeric ordering")
     ok(SemVer("2.0.0")! > SemVer("1.9.9")!, "semver major ordering")
 
+    // CalVer tags (vYY.MM.DD) parse zero-padded and order correctly (mirrors CalVerReleaseTests)
+    eq(SemVer("v26.07.05"), SemVer(major: 26, minor: 7, patch: 5), "calver parses zero-padded date")
+    eq(SemVer("v26.12.31"), SemVer(major: 26, minor: 12, patch: 31), "calver parses zero-padded date (year end)")
+    eq(SemVer("v26.01.09"), SemVer(major: 26, minor: 1, patch: 9), "calver parses zero-padded date (single-digit day)")
+    ok(SemVer("v26.07.05")! > SemVer("0.0.1")!, "calver newer than legacy semver")
+    ok(SemVer("v26.07.06")! > SemVer("v26.07.05")!, "calver later day is newer")
+    ok(SemVer("v26.08.01")! > SemVer("v26.07.31")!, "calver later month is newer (rollover)")
+    ok(SemVer("v27.01.01")! > SemVer("v26.12.31")!, "calver later year is newer (rollover)")
+
     let json = #"{"tag_name":"v0.0.2","html_url":"https://r/v0.0.2","assets":[{"name":"ColdCoach.dmg","browser_download_url":"https://d/ColdCoach.dmg"}]}"#
     let info = ReleaseCheck.parseLatestRelease(Data(json.utf8))
     eq(info?.version, SemVer(major: 0, minor: 0, patch: 2), "release parse version")
