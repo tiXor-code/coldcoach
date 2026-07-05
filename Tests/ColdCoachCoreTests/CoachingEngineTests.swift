@@ -70,4 +70,40 @@ final class CoachingEngineTests: XCTestCase {
         XCTAssertNil(card)
         XCTAssertEqual(provider.receivedRequests.count, 0)
     }
+
+    // MARK: - Mode A (requireProspectRole == false): coach on content, not role
+
+    func testModeACoachesOnObjectionFromNonProspectRole() {
+        let engine = CoachingEngine(config: .init(requireProspectRole: false))
+        let pb = TestSupport.samplePlaybook()
+        // A mixed-mic segment tagged .rep (Mode A's role heuristic is unreliable) still fires
+        // because the content is an objection.
+        let d = engine.decide(
+            segment: TranscriptSegment(role: .rep, text: "We already have a vendor.", start: 0, end: 2),
+            playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm")
+        XCTAssertNotNil(d)
+        XCTAssertEqual(d?.kind, .objection)
+    }
+
+    func testModeAStillIgnoresSmalltalkAndPartials() {
+        let engine = CoachingEngine(config: .init(requireProspectRole: false))
+        let pb = TestSupport.samplePlaybook()
+        XCTAssertNil(engine.decide(
+            segment: TranscriptSegment(role: .rep, text: "Mm, okay.", start: 0, end: 2),
+            playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm"))
+        XCTAssertNil(engine.decide(
+            segment: TranscriptSegment(role: .unknown, text: "How much?", start: 0, end: 2, isFinal: false),
+            playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm"))
+    }
+
+    func testModeBDefaultStillRequiresProspectRole() {
+        let engine = CoachingEngine() // default requireProspectRole == true
+        let pb = TestSupport.samplePlaybook()
+        XCTAssertNil(engine.decide(
+            segment: TranscriptSegment(role: .rep, text: "We already have a vendor.", start: 0, end: 2),
+            playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm"))
+        XCTAssertNotNil(engine.decide(
+            segment: TranscriptSegment(role: .prospect, text: "We already have a vendor.", start: 0, end: 2),
+            playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm"))
+    }
 }
