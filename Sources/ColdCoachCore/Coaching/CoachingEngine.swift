@@ -10,10 +10,16 @@ public final class CoachingEngine {
         public var cooldown: TimeInterval
         /// Minimum words in a prospect turn before it can trigger (objections bypass this).
         public var minWords: Int
+        /// When true (Mode B: system + mic gives reliable per-stream roles) only prospect
+        /// turns coach. When false (Mode A: a mixed mono mic that cannot be reliably
+        /// diarized by pauses) any FINAL segment whose intent warrants a card can fire,
+        /// so cards are driven by content instead of a fragile role heuristic.
+        public var requireProspectRole: Bool
 
-        public init(cooldown: TimeInterval = 6.0, minWords: Int = 2) {
+        public init(cooldown: TimeInterval = 6.0, minWords: Int = 2, requireProspectRole: Bool = true) {
             self.cooldown = cooldown
             self.minWords = minWords
+            self.requireProspectRole = requireProspectRole
         }
     }
 
@@ -45,7 +51,8 @@ public final class CoachingEngine {
         recentTurns: [TranscriptSegment],
         coachingModel: String
     ) -> Decision? {
-        guard segment.role == .prospect, segment.isFinal else { return nil }
+        guard segment.isFinal else { return nil }
+        if config.requireProspectRole, segment.role != .prospect { return nil }
 
         let intent = classifier.classify(segment.text)
         guard IntentClassifier.warrantsCard(intent) else { return nil }

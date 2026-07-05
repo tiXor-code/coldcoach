@@ -215,6 +215,13 @@ do {
                                   playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm", provider: provider)
     eq(card?.kind, .objection, "coach card kind")
     eq(card?.script, "Here is the line to say.", "coach card script")
+
+    // Mode A (requireProspectRole == false): coach on content even when role is not prospect.
+    let modeA = CoachingEngine(config: .init(requireProspectRole: false))
+    let repObjection = TranscriptSegment(role: .rep, text: "We already have a vendor.", start: 0, end: 2, isFinal: true)
+    ok(modeA.decide(segment: repObjection, playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm") != nil, "mode A: objection from non-prospect fires")
+    let modeB = CoachingEngine() // default requireProspectRole == true
+    ok(modeB.decide(segment: repObjection, playbook: pb, offerSentence: pb.offerSentence, recentTurns: [], coachingModel: "cm") == nil, "mode B: non-prospect suppressed")
 }
 
 // MARK: - Transcript store

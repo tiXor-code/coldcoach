@@ -20,7 +20,7 @@ final class CallSession: ObservableObject {
     private let onCard: (CoachingCard) -> Void
 
     private let store = TranscriptStore()
-    private let engine = CoachingEngine()
+    private let engine: CoachingEngine
     private let roleAssigner = RoleAssigner()
 
     private var source: AudioSource?
@@ -44,6 +44,9 @@ final class CallSession: ObservableObject {
         self.coachingModel = coachingModel
         self.whisperModel = whisperModel
         self.onCard = onCard
+        // Mode B has reliable per-stream roles, so gate coaching on the prospect turn.
+        // Mode A is a mixed mono mic (no reliable diarization), so coach on content.
+        self.engine = CoachingEngine(config: .init(requireProspectRole: audioMode == .systemPlusMic))
     }
 
     func start() async {
