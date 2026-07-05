@@ -1,5 +1,6 @@
 import Foundation
 import WhisperKit
+import os
 import ColdCoachCore
 
 /// WhisperKit-backed transcription. Each audio window is transcribed on-device; the model
@@ -10,15 +11,25 @@ import ColdCoachCore
 /// window-batch API (`transcribe(audioArray:)`); swap to `AudioStreamTranscriber` for tighter
 /// latency once validated on-device.
 final class WhisperKitTranscription: TranscriptionService {
+    private static let log = Logger(subsystem: "net.coldcoach.app", category: "transcription")
+
     private var whisper: WhisperKit?
     private let modelName: String
 
     init(modelName: String) { self.modelName = modelName }
 
+    /// Load (and, on first run, download) the model up front so the call UI can show a
+    /// "loading model" state instead of a silent, empty "Live" call.
+    func preload() async throws {
+        _ = try await ensureLoaded()
+    }
+
     private func ensureLoaded() async throws -> WhisperKit {
         if let whisper { return whisper }
+        Self.log.info("Loading WhisperKit model \(self.modelName, privacy: .public)…")
         let loaded = try await WhisperKit(model: modelName)
         whisper = loaded
+        Self.log.info("WhisperKit model \(self.modelName, privacy: .public) ready")
         return loaded
     }
 

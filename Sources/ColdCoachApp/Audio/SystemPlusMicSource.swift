@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import ScreenCaptureKit
+import os
 import ColdCoachCore
 
 /// Mode B: captures the prospect's audio via ScreenCaptureKit system audio and the rep's
@@ -8,9 +9,10 @@ import ColdCoachCore
 /// softphone, Zoom, or phone-mirroring app.
 ///
 /// Requires Screen Recording permission (for system audio) and Microphone permission.
-final class SystemPlusMicSource: NSObject, AudioSource, SCStreamOutput {
+final class SystemPlusMicSource: NSObject, AudioSource, SCStreamOutput, SCStreamDelegate {
     let mode: AudioMode = .systemPlusMic
 
+    private static let log = Logger(subsystem: "net.coldcoach.app", category: "audio")
     private let windowSeconds: Double
     private let micEngine = AVAudioEngine()
     private var stream: SCStream?
@@ -48,7 +50,7 @@ final class SystemPlusMicSource: NSObject, AudioSource, SCStreamOutput {
         config.width = 2
         config.height = 2
 
-        let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
         try await stream.startCapture()
         self.stream = stream
@@ -68,6 +70,15 @@ final class SystemPlusMicSource: NSObject, AudioSource, SCStreamOutput {
         micEngine.stop()
         if let stream { try? await stream.stopCapture() }
         stream = nil
+        continuation?.finish()
+    }
+
+    // MARK: - SCStreamDelegate
+
+    /// If the system-audio stream stops mid-call (permission revoked, display change), it used
+    /// to be swallowed. Log it and end the audio stream so the call does not sit there dead.
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        Self.log.error("System-audio stream stopped: \(error.localizedDescription, privacy: .public)")
         continuation?.finish()
     }
 
