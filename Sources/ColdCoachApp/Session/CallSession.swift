@@ -156,7 +156,12 @@ final class CallSession: ObservableObject {
         do {
             segments = try await transcriber.transcribe(chunk)
         } catch {
-            fail("Transcription error: \(error.localizedDescription)")
+            // Recoverable: a single bad window doesn't stop capture/transcription of the
+            // next chunk, so don't collapse the whole call into `.error` — that would hide
+            // the "Live" badge and level meter for the rest of the call. Reserve `.error`
+            // for the two fatal setup failures in start() above.
+            errorMessage = "Transcription error: \(error.localizedDescription)"
+            Self.log.error("Transcription error: \(error.localizedDescription, privacy: .public)")
             return
         }
 
