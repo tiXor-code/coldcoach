@@ -125,6 +125,16 @@ do {
     eq(ProviderKind.openrouter.displayName, "OpenRouter", "openrouter display name")
 }
 
+// MARK: - Audio level
+do {
+    approx(Double(AudioLevel.rms([0, 0, 0])), 0, "rms silence")
+    approx(Double(AudioLevel.rms([1, 1, 1])), 1, "rms full", tol: 1e-6)
+    approx(Double(AudioLevel.rms([0.5, -0.5])), 0.5, "rms mixed", tol: 1e-6)
+    approx(Double(AudioLevel.meter(rms: 0)), 0, "meter zero")
+    approx(Double(AudioLevel.meter(rms: 1)), 1, "meter clamps high", tol: 1e-6)
+    ok(AudioLevel.isSilent(rms: 0.001) && !AudioLevel.isSilent(rms: 0.1), "isSilent floor")
+}
+
 // MARK: - Mock provider
 do {
     let mock = MockLLMProvider(responses: ["a", "b"])

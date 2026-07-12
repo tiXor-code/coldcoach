@@ -18,6 +18,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var autoUpdateEnabled: Bool
     /// When the last update check ran; used to throttle to ~once/day.
     public var lastUpdateCheck: Date?
+    /// UID of the input device to capture (nil = system default). Lets the user pick the
+    /// mic that actually carries the call, e.g. a virtual/remote input. Optional so older
+    /// settings files (without this key) still decode.
+    public var inputDeviceUID: String?
 
     public init(
         provider: ProviderKind = .anthropic,
@@ -28,7 +32,8 @@ public struct AppSettings: Codable, Sendable, Equatable {
         whisperModel: String = "base",
         overlayOpacity: Double = 0.95,
         autoUpdateEnabled: Bool = true,
-        lastUpdateCheck: Date? = nil
+        lastUpdateCheck: Date? = nil,
+        inputDeviceUID: String? = nil
     ) {
         self.provider = provider
         self.coachingModel = coachingModel ?? provider.defaultCoachingModel
@@ -39,6 +44,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.overlayOpacity = overlayOpacity
         self.autoUpdateEnabled = autoUpdateEnabled
         self.lastUpdateCheck = lastUpdateCheck
+        self.inputDeviceUID = inputDeviceUID
     }
 
     public static let `default` = AppSettings()
