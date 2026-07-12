@@ -35,6 +35,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Run Claude's gh calls on the workflow GITHUB_TOKEN (granted actions:write
+          # above) instead of the exchanged Claude App token, which lacks the Actions
+          # permission and 403s `gh workflow run` (#12). workflow_dispatch events
+          # created with GITHUB_TOKEN do trigger runs (documented exception).
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_bots: "claude[bot],claude,github-actions[bot]"
           prompt: |
             You are the watchdog for the autonomous PR pipeline in ${{ github.repository }}. Using the
