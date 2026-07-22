@@ -1,7 +1,7 @@
 # Secure Development Rules Index
 
-One line per rule. Full text: `secure-development-rules-reference.md` (same directory).
-Generated from the reference; regenerate with `python3 gen-index.py` after updating it.
+One line per rule: ID, title, severity -- generic, CWE/OWASP-mapped industry practice.
+No separate detail doc or generator script exists in this repo; this file is maintained directly.
 
 
 ## Supply Chain & Dependencies
