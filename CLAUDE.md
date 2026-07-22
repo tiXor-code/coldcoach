@@ -1,3 +1,7 @@
+<!-- SEC-RULES v1 START -->
+**Security gate.** Every change made in this workspace must comply with the Secure Development Rules Reference: `docs/security/RULES-INDEX.md` (in this repo). Before completing any task, check the work against those rules and flag every breach with its SEC ID and severity. CRITICAL breaches block completion -- fix or escalate before proceeding. For security-relevant changes (auth, secrets, input handling, dependencies, agent/MCP/hook/skill config), read the matching rule section first.
+<!-- SEC-RULES v1 END -->
+
 # ColdCoach — guide for AI agents (reviewer, fixer, contributors)
 
 ColdCoach is a local-first macOS cold-call coach. `ColdCoachCore` is a pure-Swift,
