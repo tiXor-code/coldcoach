@@ -1,3 +1,9 @@
+<!-- SEC-RULES v1 START -->
+**Security gate.** Every change made in this workspace must comply with the Secure Development Rules Reference: `docs/security/RULES-INDEX.md` (in this repo). Before completing any task, check the work against those rules and flag every breach with its SEC ID and severity. CRITICAL breaches block completion -- fix or escalate before proceeding. For security-relevant changes (auth, secrets, input handling, dependencies, agent/MCP/hook/skill config), check the change against the matching entries in the index.
+
+**Provenance.** This marker block is the only part of CLAUDE.md authorized to be refreshed from the canonical Aegis (aios/security) template. Any change to it -- template rollforward or otherwise -- must land as a normal, human-reviewed pull request against this repo, same as this one; no automated or direct push to this file is authorized. Reviewers verify provenance by diffing the incoming block against the previous version and confirming the PR's author/CI identity before merging.
+<!-- SEC-RULES v1 END -->
+
 # ColdCoach — guide for AI agents (reviewer, fixer, contributors)
 
 ColdCoach is a local-first macOS cold-call coach. `ColdCoachCore` is a pure-Swift,
